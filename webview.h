@@ -1295,16 +1295,12 @@ WEBVIEW_API int webview_init(struct webview *w) {
   wc.lpszClassName = classname;
   RegisterClassEx(&wc);
 
+printf("style is :%d\n", style);
   style = WS_OVERLAPPEDWINDOW;
+printf("styleeeee is :%d\n", style);
   if (!(w->ability & WINDOW_RESIZABLE)) {
     style = WS_OVERLAPPED | WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU;
   }
-  //frame and border less 
-  if (w->ability & WINDOW_FRAMELESS) {
-      style &= ~WS_CAPTION
-  }
-
-
   rect.left = 0;
   rect.top = 0;
   rect.right = w->width;
@@ -1329,6 +1325,16 @@ WEBVIEW_API int webview_init(struct webview *w) {
   }
 
   SetWindowLongPtr(w->priv.hwnd, GWLP_USERDATA, (LONG_PTR)w);
+  //style= GetWindowLong(w->priv.hwnd, GWL_STYLE);
+  //frame and border less 
+  if (w->ability & WINDOW_FRAMELESS) {
+      style &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
+      SetWindowLong(w->priv.hwnd, GWL_STYLE, style);
+      //set ext style
+      style  = GetWindowLong(w->priv.hwnd, GWL_EXSTYLE);
+      style &= ~(WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE);
+      SetWindowLong(w->priv.hwnd, GWL_EXSTYLE, style );
+  }
 
   DisplayHTMLPage(w);
 
