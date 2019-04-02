@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/zserge/webview"
+	"github.com/virteman/webview"
 )
 
 const (

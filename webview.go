@@ -17,7 +17,7 @@ package webview
 #cgo windows CFLAGS: -DWEBVIEW_WINAPI=1
 #cgo windows LDFLAGS: -lole32 -lcomctl32 -loleaut32 -luuid -lgdi32
 
-#cgo darwin CFLAGS: -DWEBVIEW_COCOA=1 
+#cgo darwin CFLAGS: -DWEBVIEW_COCOA=1
 #cgo darwin LDFLAGS: -framework WebKit
 
 #include <stdlib.h>
@@ -34,13 +34,13 @@ static inline void CgoWebViewFree(void *w) {
 	free(w);
 }
 
-static inline void *CgoWebViewCreate(int width, int height, char *title, char *url, int resizable, int debug) {
+static inline void *CgoWebViewCreate(int width, int height, char *title, char *url, int ability, int debug) {
 	struct webview *w = (struct webview *) calloc(1, sizeof(*w));
 	w->width = width;
 	w->height = height;
 	w->title = title;
 	w->url = url;
-	w->resizable = resizable;
+	w->ability = ability;
 	w->debug = debug;
 	w->external_invoke_cb = (webview_external_invoke_cb_t) _webviewExternalInvokeCallback;
 	if (webview_init(w) != 0) {
@@ -120,21 +120,17 @@ func init() {
 // it. It can be helpful if you want to communicate with the core app using XHR
 // or WebSockets (as opposed to using JavaScript bindings).
 //
-// Window appearance can be customized using title, width, height and resizable parameters.
+// Window appearance can be customized using title, width, height and ability parameters.
 // URL must be provided and can user either a http or https protocol, or be a
 // local file:// URL. On some platforms "data:" URLs are also supported
 // (Linux/MacOS).
-func Open(title, url string, w, h int, resizable bool) error {
+func Open(title, url string, w, h int, ability int) error {
 	titleStr := C.CString(title)
 	defer C.free(unsafe.Pointer(titleStr))
 	urlStr := C.CString(url)
 	defer C.free(unsafe.Pointer(urlStr))
-	resize := C.int(0)
-	if resizable {
-		resize = C.int(1)
-	}
 
-	r := C.webview(titleStr, urlStr, C.int(w), C.int(h), resize)
+	r := C.webview(titleStr, urlStr, C.int(w), C.int(h), C.int(ability))
 	if r != 0 {
 		return errors.New("failed to create webview")
 	}

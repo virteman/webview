@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/zserge/webview"
+	"github.com/virteman/webview"
 )
 
 var indexHTML = `

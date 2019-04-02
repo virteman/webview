@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/zserge/webview"
+	"github.com/virteman/webview"
 )
 
 // Counter is a simple example of automatic Go-to-JS data binding
