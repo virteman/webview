@@ -89,6 +89,8 @@ struct webview_priv {
 #error "Define one of: WEBVIEW_GTK, WEBVIEW_COCOA or WEBVIEW_WINAPI"
 #endif
 
+#define WINDOW_RESIZABLE 0x1
+#define WINDOW_FRAMELESS 0x2
 struct webview;
 
 typedef void (*webview_external_invoke_cb_t)(struct webview *w,
@@ -99,7 +101,8 @@ struct webview {
   const char *title;
   int width;
   int height;
-  int resizable;
+  // WINDOW_FRAMELESS | WINDOW_RESIZABLE   
+  int ability;
   int debug;
   webview_external_invoke_cb_t external_invoke_cb;
   struct webview_priv priv;
@@ -151,7 +154,7 @@ static const char *webview_check_url(const char *url) {
 }
 
 WEBVIEW_API int webview(const char *title, const char *url, int width,
-                        int height, int resizable);
+                        int height, int ability);
 
 WEBVIEW_API int webview_init(struct webview *w);
 WEBVIEW_API int webview_loop(struct webview *w, int blocking);
@@ -176,14 +179,14 @@ WEBVIEW_API void webview_print_log(const char *s);
 #undef WEBVIEW_IMPLEMENTATION
 
 WEBVIEW_API int webview(const char *title, const char *url, int width,
-                        int height, int resizable) {
+                        int height, int ability) {
   struct webview webview;
   memset(&webview, 0, sizeof(webview));
   webview.title = title;
   webview.url = url;
   webview.width = width;
   webview.height = height;
-  webview.resizable = resizable;
+  webview.ability = ability;
   int r = webview_init(&webview);
   if (r != 0) {
     return r;
@@ -250,14 +253,19 @@ static void external_message_received_cb(WebKitUserContentManager *m,
   if (w->external_invoke_cb == NULL) {
     return;
   }
+#if WEBKIT_MAJOR_VERSION >= 2 && WEBKIT_MINOR_VERSION >= 22
+  JSCValue *value = webkit_javascript_result_get_js_value(r);
+  char *s = jsc_value_to_string(value);
+#else
   JSGlobalContextRef context = webkit_javascript_result_get_global_context(r);
   JSValueRef value = webkit_javascript_result_get_value(r);
   JSStringRef js = JSValueToStringCopy(context, value, NULL);
   size_t n = JSStringGetMaximumUTF8CStringSize(js);
   char *s = g_new(char, n);
   JSStringGetUTF8CString(js, s, n);
-  w->external_invoke_cb(w, s);
   JSStringRelease(js);
+#endif
+  w->external_invoke_cb(w, s);
   g_free(s);
 }
 
@@ -300,13 +308,17 @@ WEBVIEW_API int webview_init(struct webview *w) {
   w->priv.window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_title(GTK_WINDOW(w->priv.window), w->title);
 
-  if (w->resizable) {
+  if (w->ability & WINDOW_RESIZABLE) {
     gtk_window_set_default_size(GTK_WINDOW(w->priv.window), w->width,
                                 w->height);
   } else {
     gtk_widget_set_size_request(w->priv.window, w->width, w->height);
   }
-  gtk_window_set_resizable(GTK_WINDOW(w->priv.window), !!w->resizable);
+  //frame and border less 
+  if (w->ability & WINDOW_FRAMELESS) {
+      gtk_window_set_decorated(GTK_WINDOW(w->priv.window), FALSE);
+  }
+  gtk_window_set_resizable(GTK_WINDOW(w->priv.window), !!(w->ability & WINDOW_RESIZABLE) );
   gtk_window_set_position(GTK_WINDOW(w->priv.window), GTK_WIN_POS_CENTER);
 
   w->priv.scroller = gtk_scrolled_window_new(NULL, NULL);
@@ -1284,9 +1296,14 @@ WEBVIEW_API int webview_init(struct webview *w) {
   RegisterClassEx(&wc);
 
   style = WS_OVERLAPPEDWINDOW;
-  if (!w->resizable) {
+  if (!(w->ability & WINDOW_RESIZABLE)) {
     style = WS_OVERLAPPED | WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU;
   }
+  //frame and border less 
+  if (w->ability & WINDOW_FRAMELESS) {
+      style &= ~WS_CAPTION
+  }
+
 
   rect.left = 0;
   rect.top = 0;
@@ -1668,6 +1685,7 @@ WEBVIEW_API void webview_print_log(const char *s) { OutputDebugString(s); }
 #define NSAlertStyleCritical 2
 #define NSWindowStyleMaskResizable 8
 #define NSWindowStyleMaskMiniaturizable 4
+#define NSWindowStyleMaskBorderless 0
 #define NSWindowStyleMaskTitled 1
 #define NSWindowStyleMaskClosable 2
 #define NSWindowStyleMaskFullScreen (1 << 14)
@@ -1932,9 +1950,14 @@ WEBVIEW_API int webview_init(struct webview *w) {
 
   unsigned int style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
                        NSWindowStyleMaskMiniaturizable;
-  if (w->resizable) {
+  if (w->ability & WINDOW_RESIZABLE) {
     style = style | NSWindowStyleMaskResizable;
   }
+  if (w->ability & WINDOW_FRAMELESS) {
+    style |= NSWindowStyleMaskBorderless;
+    style &= ~NSWindowStyleMaskTitled;
+  }
+
 
   w->priv.window =
       objc_msgSend((id)objc_getClass("NSWindow"), sel_registerName("alloc"));
