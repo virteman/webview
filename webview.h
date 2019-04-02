@@ -1299,6 +1299,11 @@ WEBVIEW_API int webview_init(struct webview *w) {
   if (!(w->ability & WINDOW_RESIZABLE)) {
     style = WS_OVERLAPPED | WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU;
   }
+  //frame and border less 
+  if (w->ability & WINDOW_FRAMELESS) {
+      style &= ~WS_CAPTION
+  }
+
 
   rect.left = 0;
   rect.top = 0;
@@ -1680,6 +1685,7 @@ WEBVIEW_API void webview_print_log(const char *s) { OutputDebugString(s); }
 #define NSAlertStyleCritical 2
 #define NSWindowStyleMaskResizable 8
 #define NSWindowStyleMaskMiniaturizable 4
+#define NSWindowStyleMaskBorderless 0
 #define NSWindowStyleMaskTitled 1
 #define NSWindowStyleMaskClosable 2
 #define NSWindowStyleMaskFullScreen (1 << 14)
@@ -1947,6 +1953,11 @@ WEBVIEW_API int webview_init(struct webview *w) {
   if (w->ability & WINDOW_RESIZABLE) {
     style = style | NSWindowStyleMaskResizable;
   }
+  if (w->ability & WINDOW_FRAMELESS) {
+    style |= NSWindowStyleMaskBorderless;
+    style &= ~NSWindowStyleMaskTitled;
+  }
+
 
   w->priv.window =
       objc_msgSend((id)objc_getClass("NSWindow"), sel_registerName("alloc"));
