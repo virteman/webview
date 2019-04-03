@@ -171,8 +171,8 @@ type Settings struct {
 	Width int
 	// Window height in pixels
 	Height int
-	// Allows/disallows window resizing
-	Resizable bool
+	// frameless resizeable ...
+	Ability int
 	// Enable debugging tools (Linux/BSD/MacOS, on Windows use Firebug)
 	Debug bool
 	// A callback that is executed when JavaScript calls "window.external.invoke()"
@@ -287,7 +287,7 @@ func New(settings Settings) WebView {
 	w := &webview{}
 	w.w = C.CgoWebViewCreate(C.int(settings.Width), C.int(settings.Height),
 		C.CString(settings.Title), C.CString(settings.URL),
-		C.int(boolToInt(settings.Resizable)), C.int(boolToInt(settings.Debug)))
+		C.int(settings.Ability), C.int(boolToInt(settings.Debug)))
 	m.Lock()
 	if settings.ExternalInvokeCallback != nil {
 		cbs[w] = settings.ExternalInvokeCallback

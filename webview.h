@@ -491,7 +491,16 @@ WEBVIEW_API void webview_terminate(struct webview *w) {
   w->priv.should_exit = 1;
 }
 
-WEBVIEW_API void webview_exit(struct webview *w) { (void)w; }
+WEBVIEW_API void webview_exit(struct webview *w) { 
+  ///
+ gtk_widget_hide(w->priv.window);
+ //gtk_widget_destroy(w->priv.window);
+ //gtk_widget_destroy(w->priv.inspector_window);
+ //gtk_widget_destroy(w->priv.webview);
+ //gtk_widget_destroy(w->priv.scroller);
+  w->priv.should_exit = 1;
+  (void)w; 
+}
 WEBVIEW_API void webview_print_log(const char *s) {
   fprintf(stderr, "%s\n", s);
 }
