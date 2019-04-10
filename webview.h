@@ -42,6 +42,9 @@ extern "C" {
 #include <JavaScriptCore/JavaScript.h>
 #include <gtk/gtk.h>
 #include <webkit2/webkit2.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+
 
 struct webview_priv {
   GtkWidget *window;
@@ -53,6 +56,9 @@ struct webview_priv {
   int js_busy;
   int should_exit;
 };
+
+GMutex mutex_interface;
+
 #elif defined(WEBVIEW_WINAPI)
 #define CINTERFACE
 #include <windows.h>
@@ -131,6 +137,15 @@ struct webview_dispatch_arg {
   void *arg;
 };
 
+//run javascript bunder args
+struct webview2webkit_args {
+  WebKitWebView *webview;
+  gchar *script;
+  GCancellable *cancellable;
+  GAsyncReadyCallback callback;
+  gpointer user_data;
+};
+
 #define DEFAULT_URL                                                            \
   "data:text/"                                                                 \
   "html,%3C%21DOCTYPE%20html%3E%0A%3Chtml%20lang=%22en%22%3E%0A%3Chead%3E%"    \
@@ -174,6 +189,11 @@ WEBVIEW_API void webview_terminate(struct webview *w);
 WEBVIEW_API void webview_exit(struct webview *w);
 WEBVIEW_API void webview_debug(const char *format, ...);
 WEBVIEW_API void webview_print_log(const char *s);
+WEBVIEW_API void webview_run_javascript(struct webview *w, 
+        const char *jsstr, 
+        GCancellable *cancellable,
+        GAsyncReadyCallback callback,
+        gpointer user_data);
 
 #ifdef WEBVIEW_IMPLEMENTATION
 #undef WEBVIEW_IMPLEMENTATION
@@ -297,6 +317,18 @@ static gboolean webview_context_menu_cb(WebKitWebView *webview,
   return TRUE;
 }
 
+static void _webview_dispatch_inner_cb(struct webview *w, void *arg) {
+  struct webview2webkit_args *webkit_args = (struct webview2webkit_args *)arg;
+
+  printf("_webview_dispatch_inner_cb:%s tid: %ld\n", w->url, syscall(SYS_gettid) );
+  webkit_web_view_run_javascript(
+      webkit_args->webview,
+      webkit_args->script,
+      webkit_args->cancellable,
+      webkit_args->callback,
+      webkit_args->user_data);
+}
+
 WEBVIEW_API int webview_init(struct webview *w) {
   if (gtk_init_check(0, NULL) == FALSE) {
     return -1;
@@ -348,8 +380,10 @@ WEBVIEW_API int webview_init(struct webview *w) {
 
   gtk_widget_show_all(w->priv.window);
 
-  webkit_web_view_run_javascript(
-      WEBKIT_WEB_VIEW(w->priv.webview),
+  printf("web_init:%s tid: %ld\n", w->url, syscall(SYS_gettid) );
+  g_mutex_init(&mutex_interface);
+
+  webview_run_javascript(w,
       "window.external={invoke:function(x){"
       "window.webkit.messageHandlers.external.postMessage(x);}}",
       NULL, NULL, NULL);
@@ -357,6 +391,21 @@ WEBVIEW_API int webview_init(struct webview *w) {
   g_signal_connect(G_OBJECT(w->priv.window), "destroy",
                    G_CALLBACK(webview_destroy_cb), w);
   return 0;
+}
+// make sure run javascript in the main thread
+WEBVIEW_API void webview_run_javascript(struct webview *w, 
+        const char *jsstr, 
+        GCancellable *cancellable,
+        GAsyncReadyCallback callback,
+        gpointer user_data) {
+    
+    struct webview2webkit_args wvwebkit_args =  { 
+        WEBKIT_WEB_VIEW(w->priv.webview), (gchar *)jsstr, 
+        cancellable,
+        callback,
+        user_data
+    };
+    webview_dispatch(w, _webview_dispatch_inner_cb, &wvwebkit_args);
 }
 
 WEBVIEW_API int webview_loop(struct webview *w, int blocking) {
@@ -459,6 +508,7 @@ WEBVIEW_API int webview_eval(struct webview *w, const char *js) {
 }
 
 static gboolean webview_dispatch_wrapper(gpointer userdata) {
+  g_mutex_lock(&mutex_interface);
   struct webview *w = (struct webview *)userdata;
   for (;;) {
     struct webview_dispatch_arg *arg =
@@ -469,6 +519,7 @@ static gboolean webview_dispatch_wrapper(gpointer userdata) {
     (arg->fn)(w, arg->arg);
     g_free(arg);
   }
+  g_mutex_unlock(&mutex_interface);
   return FALSE;
 }
 
@@ -492,14 +543,13 @@ WEBVIEW_API void webview_terminate(struct webview *w) {
 }
 
 WEBVIEW_API void webview_exit(struct webview *w) { 
-  ///
- gtk_widget_hide(w->priv.window);
- //gtk_widget_destroy(w->priv.window);
- //gtk_widget_destroy(w->priv.inspector_window);
- //gtk_widget_destroy(w->priv.webview);
- //gtk_widget_destroy(w->priv.scroller);
+ //webkit_web_view_try_close((WebKitWebView *)(w->priv.webview));
+ //webkit_web_view_try_close(w->priv.webview);
+ //gtk_widget_hide(w->priv.window);
+
+ gtk_widget_destroy(w->priv.window);
  // w->priv.should_exit = 1;
-  (void)w; 
+ //(void)w; 
 }
 WEBVIEW_API void webview_print_log(const char *s) {
   fprintf(stderr, "%s\n", s);

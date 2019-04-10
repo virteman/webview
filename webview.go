@@ -113,8 +113,14 @@ import (
 
 func init() {
 	// Ensure that main.main is called from the main thread
-	runtime.LockOSThread()
+	//runtime.LockOSThread()
 }
+
+var (
+	// gtk main loop have to run in only one thread,
+	// otherwise cause process crash(eg: received signal SIGSEGV, Segmentation fault: 0x00007ffff19ebcb0 in WTF::StringImpl::hashSlowCase() const () from /usr/lib/x86_64-linux-gnu/libjavascriptcoregtk-4.0.so.18.) when multi loops
+	runLoopOnce bool = true
+)
 
 // Open is a simplified API to open a single native window with a full-size webview in
 // it. It can be helpful if you want to communicate with the core app using XHR
@@ -163,6 +169,8 @@ type ExternalInvokeCallbackFunc func(w WebView, data string)
 // Settings is a set of parameters to customize the initial WebView appearance
 // and behavior. It is passed into the webview.New() constructor.
 type Settings struct {
+	// window id
+	ID string
 	// WebView main window title
 	Title string
 	// URL to open in a webview
@@ -285,9 +293,10 @@ func New(settings Settings) WebView {
 		settings.Title = "WebView"
 	}
 	w := &webview{}
-	w.w = C.CgoWebViewCreate(C.int(settings.Width), C.int(settings.Height),
-		C.CString(settings.Title), C.CString(settings.URL),
-		C.int(settings.Ability), C.int(boolToInt(settings.Debug)))
+	w.w = unsafe.Pointer(
+		C.CgoWebViewCreate(C.int(settings.Width), C.int(settings.Height),
+			C.CString(settings.Title), C.CString(settings.URL),
+			C.int(settings.Ability), C.int(boolToInt(settings.Debug))))
 	m.Lock()
 	if settings.ExternalInvokeCallback != nil {
 		cbs[w] = settings.ExternalInvokeCallback
@@ -303,16 +312,22 @@ func (w *webview) Loop(blocking bool) bool {
 	if blocking {
 		block = 1
 	}
-	return C.CgoWebViewLoop(w.w, block) == 0
+	return C.CgoWebViewLoop(w.w, block) == C.int(0)
 }
 
+//when linux, limit run once
 func (w *webview) Run() {
-	for w.Loop(true) {
+	// for linux multi gtk windows
+	if (runtime.GOOS == "linux" && runLoopOnce) || runtime.GOOS != "linux" {
+		runLoopOnce = false
+		for w.Loop(true) {
+		}
 	}
 }
 
 func (w *webview) Exit() {
 	C.CgoWebViewExit(w.w)
+	C.CgoWebViewFree(w.w)
 }
 
 func (w *webview) Dispatch(f func()) {
