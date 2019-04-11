@@ -163,6 +163,8 @@ type ExternalInvokeCallbackFunc func(w WebView, data string)
 // Settings is a set of parameters to customize the initial WebView appearance
 // and behavior. It is passed into the webview.New() constructor.
 type Settings struct {
+	// window id
+	ID string
 	// WebView main window title
 	Title string
 	// URL to open in a webview
@@ -285,9 +287,10 @@ func New(settings Settings) WebView {
 		settings.Title = "WebView"
 	}
 	w := &webview{}
-	w.w = C.CgoWebViewCreate(C.int(settings.Width), C.int(settings.Height),
-		C.CString(settings.Title), C.CString(settings.URL),
-		C.int(settings.Ability), C.int(boolToInt(settings.Debug)))
+	w.w = unsafe.Pointer(
+		C.CgoWebViewCreate(C.int(settings.Width), C.int(settings.Height),
+			C.CString(settings.Title), C.CString(settings.URL),
+			C.int(settings.Ability), C.int(boolToInt(settings.Debug))))
 	m.Lock()
 	if settings.ExternalInvokeCallback != nil {
 		cbs[w] = settings.ExternalInvokeCallback
@@ -303,7 +306,7 @@ func (w *webview) Loop(blocking bool) bool {
 	if blocking {
 		block = 1
 	}
-	return C.CgoWebViewLoop(w.w, block) == 0
+	return C.CgoWebViewLoop(w.w, block) == C.int(0)
 }
 
 func (w *webview) Run() {
@@ -313,6 +316,7 @@ func (w *webview) Run() {
 
 func (w *webview) Exit() {
 	C.CgoWebViewExit(w.w)
+	C.CgoWebViewFree(w.w)
 }
 
 func (w *webview) Dispatch(f func()) {
