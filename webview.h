@@ -177,6 +177,10 @@ WEBVIEW_API int webview_eval(struct webview *w, const char *js);
 WEBVIEW_API int webview_inject_css(struct webview *w, const char *css);
 WEBVIEW_API void webview_set_title(struct webview *w, const char *title);
 WEBVIEW_API void webview_set_fullscreen(struct webview *w, int fullscreen);
+WEBVIEW_API void webview_set_frame_show(struct webview *w, int showframe);
+WEBVIEW_API void webview_move(struct webview *w, int x, int y);
+WEBVIEW_API void webview_resize(struct webview *w, int width, int height);
+WEBVIEW_API void webview_set_bounds(struct webview *w, int x, int y, int width, int height);
 WEBVIEW_API void webview_set_color(struct webview *w, uint8_t r, uint8_t g,
                                    uint8_t b, uint8_t a);
 WEBVIEW_API void webview_dialog(struct webview *w,
@@ -447,6 +451,27 @@ WEBVIEW_API void webview_set_fullscreen(struct webview *w, int fullscreen) {
   } else {
     gtk_window_unfullscreen(GTK_WINDOW(w->priv.window));
   }
+}
+
+WEBVIEW_API void webview_set_frame_show(struct webview *w, int showframe){
+  if (showframe) {
+    gtk_window_set_decorated(GTK_WINDOW(w->priv.window), TRUE);
+  } else {
+    gtk_window_set_decorated(GTK_WINDOW(w->priv.window), FALSE);
+  }
+}
+
+
+WEBVIEW_API void webview_move(struct webview *w, int x, int y) {
+    gtk_window_move(GTK_WINDOW(w->priv.window), (gint)x, (gint)y);
+}
+WEBVIEW_API void webview_resize(struct webview *w, int width, int height) {
+    gtk_window_resize(GTK_WINDOW(w->priv.window), (gint)width, (gint)height);
+}
+WEBVIEW_API void webview_set_bounds(struct webview *w, int x, int y, 
+                                   int width, int height){
+    webview_move(w, x, y);
+    webview_resize(w, width, height);
 }
 
 WEBVIEW_API void webview_set_color(struct webview *w, uint8_t r, uint8_t g,
@@ -1573,6 +1598,32 @@ WEBVIEW_API void webview_set_fullscreen(struct webview *w, int fullscreen) {
                  w->priv.saved_rect.bottom - w->priv.saved_rect.top,
                  SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
   }
+}
+
+WEBVIEW_API void webview_set_frame_show(struct webview *w, int showframe){
+  w->priv.saved_style = GetWindowLong(w->priv.hwnd, GWL_STYLE);
+  if (showframe) {
+    SetWindowLong(w->priv.hwnd, GWL_STYLE, 
+            w->priv.saved_style |WS_OVERLAPPEDWINDOW);
+  } else {
+    SetWindowLong(w->priv.hwnd, GWL_STYLE, 
+            w->priv.saved_style & ~WS_CAPTION);
+  }
+}
+
+WEBVIEW_API void webview_move(struct webview *w, int x, int y) {
+    SetWindowPos(w->priv.hwnd, NULL, x, y, NULL, NULL,
+                 SWP_NOZORDER | SWP_NOSIZE | SWP_FRAMECHANGED);
+}
+WEBVIEW_API void webview_resize(struct webview *w, int width, int height) {
+    SetWindowPos(w->priv.hwnd, NULL, NULL, NULL, width, height,
+                 SWP_NOZORDER | SWP_NOMOVE | SWP_FRAMECHANGED);
+}
+WEBVIEW_API void webview_set_bounds(struct webview *w, int x, int y, 
+                                   int width, int height){
+    SetWindowPos(w->priv.hwnd, NULL, x, y, width, height,
+                 SWP_NOZORDER | SWP_FRAMECHANGED);
+    
 }
 
 WEBVIEW_API void webview_set_color(struct webview *w, uint8_t r, uint8_t g,
