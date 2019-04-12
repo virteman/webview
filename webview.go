@@ -369,9 +369,9 @@ func (w *webview) SetFullscreen(fullscreen bool) {
 	})
 }
 func (w *webview) SetFrameShow(showframe bool) {
-	w.Dispatch(func() {
-		C.CgoWebViewSetFrameShow(w.w, C.int(boolToInt(showframe)))
-	})
+    w.Dispatch(func() {
+        C.CgoWebViewSetFrameShow(w.w, C.int(boolToInt(showframe)))
+    })
 }
 func (w *webview) Move(x, y int) {
 	w.Dispatch(func() {

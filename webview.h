@@ -137,14 +137,6 @@ struct webview_dispatch_arg {
   void *arg;
 };
 
-//run javascript bunder args
-struct webview2webkit_args {
-  WebKitWebView *webview;
-  gchar *script;
-  GCancellable *cancellable;
-  GAsyncReadyCallback callback;
-  gpointer user_data;
-};
 
 #define DEFAULT_URL                                                            \
   "data:text/"                                                                 \
@@ -193,11 +185,6 @@ WEBVIEW_API void webview_terminate(struct webview *w);
 WEBVIEW_API void webview_exit(struct webview *w);
 WEBVIEW_API void webview_debug(const char *format, ...);
 WEBVIEW_API void webview_print_log(const char *s);
-WEBVIEW_API void webview_run_javascript(struct webview *w, 
-        const char *jsstr, 
-        GCancellable *cancellable,
-        GAsyncReadyCallback callback,
-        gpointer user_data);
 
 #ifdef WEBVIEW_IMPLEMENTATION
 #undef WEBVIEW_IMPLEMENTATION
@@ -269,6 +256,19 @@ WEBVIEW_API int webview_inject_css(struct webview *w, const char *css) {
 }
 
 #if defined(WEBVIEW_GTK)
+WEBVIEW_API void webview_run_javascript(struct webview *w, 
+        const char *jsstr, 
+        GCancellable *cancellable,
+        GAsyncReadyCallback callback,
+        gpointer user_data);
+//run javascript bunder args
+struct webview2webkit_args {
+  WebKitWebView *webview;
+  gchar *script;
+  GCancellable *cancellable;
+  GAsyncReadyCallback callback;
+  gpointer user_data;
+};
 static void external_message_received_cb(WebKitUserContentManager *m,
                                          WebKitJavascriptResult *r,
                                          gpointer arg) {
@@ -1403,9 +1403,7 @@ WEBVIEW_API int webview_init(struct webview *w) {
   wc.lpszClassName = classname;
   RegisterClassEx(&wc);
 
-printf("style is :%d\n", style);
   style = WS_OVERLAPPEDWINDOW;
-printf("styleeeee is :%d\n", style);
   if (!(w->ability & WINDOW_RESIZABLE)) {
     style = WS_OVERLAPPED | WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU;
   }
@@ -1437,11 +1435,11 @@ printf("styleeeee is :%d\n", style);
   //frame and border less 
   if (w->ability & WINDOW_FRAMELESS) {
       style &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
-      SetWindowLong(w->priv.hwnd, GWL_STYLE, style);
+      SetWindowLongPtr(w->priv.hwnd, GWL_STYLE, style);
       //set ext style
-      style  = GetWindowLong(w->priv.hwnd, GWL_EXSTYLE);
+      style  = GetWindowLongPtr(w->priv.hwnd, GWL_EXSTYLE);
       style &= ~(WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE);
-      SetWindowLong(w->priv.hwnd, GWL_EXSTYLE, style );
+      SetWindowLongPtr(w->priv.hwnd, GWL_EXSTYLE, style );
   }
 
   DisplayHTMLPage(w);
@@ -1607,28 +1605,49 @@ WEBVIEW_API void webview_set_fullscreen(struct webview *w, int fullscreen) {
 }
 
 WEBVIEW_API void webview_set_frame_show(struct webview *w, int showframe){
-  w->priv.saved_style = GetWindowLong(w->priv.hwnd, GWL_STYLE);
+  w->priv.saved_style = GetWindowLongPtr(w->priv.hwnd, GWL_STYLE);
+  w->priv.saved_ex_style = GetWindowLongPtr(w->priv.hwnd, GWL_EXSTYLE);
   if (showframe) {
-    SetWindowLong(w->priv.hwnd, GWL_STYLE, 
-            w->priv.saved_style |WS_OVERLAPPEDWINDOW);
+    LONG_PTR rn = SetWindowLongPtr(w->priv.hwnd, GWL_STYLE, 
+            w->priv.saved_style | WS_TILEDWINDOW);
+    /*
+    printf("set frame show %d\n", rn);
+    if(rn == 0 ) {
+        DWORD err = GetLastError();
+        wprintf(L"error is: %s", err );
+    }
+    */
+    SetWindowLongPtr(w->priv.hwnd, GWL_EXSTYLE, 
+            w->priv.saved_ex_style | (WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | 
+            WS_EX_STATICEDGE) );
+    SetWindowPos(w->priv.hwnd, NULL, 0,0,0,0, (UINT)(SWP_FRAMECHANGED | 
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER));
   } else {
-    SetWindowLong(w->priv.hwnd, GWL_STYLE, 
-            w->priv.saved_style & ~WS_CAPTION);
+    SetWindowLongPtr(w->priv.hwnd, GWL_STYLE, 
+            w->priv.saved_style & ~(WS_CAPTION | WS_THICKFRAME | 
+                WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU));
+    SetWindowLongPtr(w->priv.hwnd, GWL_EXSTYLE, 
+            w->priv.saved_ex_style & ~(WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE 
+                | WS_EX_STATICEDGE));
+    SetWindowPos(w->priv.hwnd, NULL, 0,0,0,0, (UINT)(SWP_FRAMECHANGED | 
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER));
   }
 }
 
 WEBVIEW_API void webview_move(struct webview *w, int x, int y) {
-    SetWindowPos(w->priv.hwnd, NULL, x, y, NULL, NULL,
-                 SWP_NOZORDER | SWP_NOSIZE | SWP_FRAMECHANGED);
+    SetWindowPos(w->priv.hwnd, NULL, x, y, 0, 0,
+                 (UINT)(SWP_NOZORDER | SWP_NOSIZE | SWP_FRAMECHANGED));
 }
 WEBVIEW_API void webview_resize(struct webview *w, int width, int height) {
-    SetWindowPos(w->priv.hwnd, NULL, NULL, NULL, width, height,
-                 SWP_NOZORDER | SWP_NOMOVE | SWP_FRAMECHANGED);
+    SetWindowPos(w->priv.hwnd, NULL, 0, 0, width, height,
+                 (UINT)(SWP_NOZORDER | SWP_NOMOVE | SWP_FRAMECHANGED));
 }
 WEBVIEW_API void webview_set_bounds(struct webview *w, int x, int y, 
                                    int width, int height){
+    printf("bounds is :%d %d %d %d\n", x,y,width, height);
     SetWindowPos(w->priv.hwnd, NULL, x, y, width, height,
-                 SWP_NOZORDER | SWP_FRAMECHANGED);
+                 (UINT)(SWP_NOZORDER | SWP_FRAMECHANGED));
+    printf("set bounds done\n");
     
 }
 
