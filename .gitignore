@@ -5,3 +5,7 @@
 /examples/minimal/minimal.exe
 /examples/minimal/build
 /examples/timer-cxx/build
+.idea
+.idea/*
+cmake-build-debug
+cmake-build-debug/*
