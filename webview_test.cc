@@ -87,7 +87,7 @@ static void test_window_size() {
   std::cout << "TEST: window size" << std::endl;
   w.width = 480;
   w.height = 320;
-  w.resizable = 1;
+//  w.resizable = 1;
   w.userdata = static_cast<void *>(&results);
   w.external_invoke_cb = [](struct webview *w, const char *arg) {
     auto *v = static_cast<std::vector<std::string> *>(w->userdata);

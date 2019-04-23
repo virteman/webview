@@ -70,6 +70,10 @@ static inline void CgoWebViewSetFullscreen(void *w, int fullscreen) {
 	webview_set_fullscreen((struct webview *)w, fullscreen);
 }
 
+static inline void CgoWebViewFocus(void *w) {
+	webview_focus((struct webview *)w);
+}
+
 static inline void CgoWebViewSetFrameShow(void *w, int showframe) {
 	webview_set_frame_show((struct webview *)w, showframe);
 }
@@ -212,6 +216,8 @@ type WebView interface {
 	// SetFullscreen() controls window full-screen mode. This method must be
 	// called from the main thread only. See Dispatch() for more details.
 	SetFullscreen(fullscreen bool)
+	//focus
+	Focus()
 	// show frame or not
 	SetFrameShow(showframe bool)
 	// move the window
@@ -368,6 +374,13 @@ func (w *webview) SetFullscreen(fullscreen bool) {
 		C.CgoWebViewSetFullscreen(w.w, C.int(boolToInt(fullscreen)))
 	})
 }
+
+func (w *webview) Focus() {
+	w.Dispatch(func() {
+		C.CgoWebViewFocus(w.w)
+	})
+}
+
 func (w *webview) SetFrameShow(showframe bool) {
     w.Dispatch(func() {
         C.CgoWebViewSetFrameShow(w.w, C.int(boolToInt(showframe)))
