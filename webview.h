@@ -487,8 +487,9 @@ WEBVIEW_API void webview_move(struct webview *w, int x, int y) {
     gtk_window_move(GTK_WINDOW(w->priv.window), (gint) x, (gint) y);
 }
 WEBVIEW_API void webview_focus(struct webview *w) {
-    gtk_widget_grab_focus(w->priv.window);
+    gtk_window_present(GTK_WINDOW(w->priv.window));
 }
+
 WEBVIEW_API void webview_resize(struct webview *w, int width, int height) {
     gtk_window_resize(GTK_WINDOW(w->priv.window), (gint) width, (gint) height);
 }
