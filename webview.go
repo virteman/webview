@@ -17,7 +17,7 @@ package webview
 #cgo windows CFLAGS: -DWEBVIEW_WINAPI=1
 #cgo windows LDFLAGS: -lole32 -lcomctl32 -loleaut32 -luuid -lgdi32
 
-#cgo darwin CFLAGS: -DWEBVIEW_COCOA=1 
+#cgo darwin CFLAGS: -DWEBVIEW_COCOA=1
 #cgo darwin LDFLAGS: -framework WebKit
 
 #include <stdlib.h>
@@ -34,13 +34,13 @@ static inline void CgoWebViewFree(void *w) {
 	free(w);
 }
 
-static inline void *CgoWebViewCreate(int width, int height, char *title, char *url, int resizable, int debug) {
+static inline void *CgoWebViewCreate(int width, int height, char *title, char *url, int ability, int debug) {
 	struct webview *w = (struct webview *) calloc(1, sizeof(*w));
 	w->width = width;
 	w->height = height;
 	w->title = title;
 	w->url = url;
-	w->resizable = resizable;
+	w->ability = ability;
 	w->debug = debug;
 	w->external_invoke_cb = (webview_external_invoke_cb_t) _webviewExternalInvokeCallback;
 	if (webview_init(w) != 0) {
@@ -68,6 +68,27 @@ static inline void CgoWebViewSetTitle(void *w, char *title) {
 
 static inline void CgoWebViewSetFullscreen(void *w, int fullscreen) {
 	webview_set_fullscreen((struct webview *)w, fullscreen);
+}
+
+static inline void CgoWebViewFocus(void *w) {
+	webview_focus((struct webview *)w);
+}
+
+static inline void CgoWebViewSetFrameShow(void *w, int showframe) {
+	webview_set_frame_show((struct webview *)w, showframe);
+}
+
+static inline void CgoWebViewMove(void *w, int x, int y) {
+	webview_move((struct webview *)w, x, y);
+}
+
+static inline void CgoWebViewResize(void *w, int width, int height) {
+	webview_resize((struct webview *)w, width, height);
+}
+
+static inline void
+CgoWebViewSetBounds(void *w, int x, int y, int width, int height) {
+	webview_set_bounds((struct webview *)w, x, y, width, height);
 }
 
 static inline void CgoWebViewSetColor(void *w, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
@@ -120,21 +141,17 @@ func init() {
 // it. It can be helpful if you want to communicate with the core app using XHR
 // or WebSockets (as opposed to using JavaScript bindings).
 //
-// Window appearance can be customized using title, width, height and resizable parameters.
+// Window appearance can be customized using title, width, height and ability parameters.
 // URL must be provided and can user either a http or https protocol, or be a
 // local file:// URL. On some platforms "data:" URLs are also supported
 // (Linux/MacOS).
-func Open(title, url string, w, h int, resizable bool) error {
+func Open(title, url string, w, h int, ability int) error {
 	titleStr := C.CString(title)
 	defer C.free(unsafe.Pointer(titleStr))
 	urlStr := C.CString(url)
 	defer C.free(unsafe.Pointer(urlStr))
-	resize := C.int(0)
-	if resizable {
-		resize = C.int(1)
-	}
 
-	r := C.webview(titleStr, urlStr, C.int(w), C.int(h), resize)
+	r := C.webview(titleStr, urlStr, C.int(w), C.int(h), C.int(ability))
 	if r != 0 {
 		return errors.New("failed to create webview")
 	}
@@ -167,6 +184,8 @@ type ExternalInvokeCallbackFunc func(w WebView, data string)
 // Settings is a set of parameters to customize the initial WebView appearance
 // and behavior. It is passed into the webview.New() constructor.
 type Settings struct {
+	// window id
+	ID string
 	// WebView main window title
 	Title string
 	// URL to open in a webview
@@ -175,8 +194,8 @@ type Settings struct {
 	Width int
 	// Window height in pixels
 	Height int
-	// Allows/disallows window resizing
-	Resizable bool
+	// frameless resizeable ...
+	Ability int
 	// Enable debugging tools (Linux/BSD/MacOS, on Windows use Firebug)
 	Debug bool
 	// A callback that is executed when JavaScript calls "window.external.invoke()"
@@ -197,6 +216,16 @@ type WebView interface {
 	// SetFullscreen() controls window full-screen mode. This method must be
 	// called from the main thread only. See Dispatch() for more details.
 	SetFullscreen(fullscreen bool)
+	//focus
+	Focus()
+	// show frame or not
+	SetFrameShow(showframe bool)
+	// move the window
+	Move(x, y int)
+	// move the window
+	Resize(width, height int)
+	// set the window position and size
+	SetBounds(x, y, width, height int)
 	// SetColor() changes window background color. This method must be called from
 	// the main thread only. See Dispatch() for more details.
 	SetColor(r, g, b, a uint8)
@@ -289,9 +318,10 @@ func New(settings Settings) WebView {
 		settings.Title = "WebView"
 	}
 	w := &webview{}
-	w.w = C.CgoWebViewCreate(C.int(settings.Width), C.int(settings.Height),
-		C.CString(settings.Title), C.CString(settings.URL),
-		C.int(boolToInt(settings.Resizable)), C.int(boolToInt(settings.Debug)))
+	w.w = unsafe.Pointer(
+		C.CgoWebViewCreate(C.int(settings.Width), C.int(settings.Height),
+			C.CString(settings.Title), C.CString(settings.URL),
+			C.int(settings.Ability), C.int(boolToInt(settings.Debug))))
 	m.Lock()
 	if settings.ExternalInvokeCallback != nil {
 		cbs[w] = settings.ExternalInvokeCallback
@@ -307,7 +337,7 @@ func (w *webview) Loop(blocking bool) bool {
 	if blocking {
 		block = 1
 	}
-	return C.CgoWebViewLoop(w.w, block) == 0
+	return C.CgoWebViewLoop(w.w, block) == C.int(0)
 }
 
 func (w *webview) Run() {
@@ -317,6 +347,7 @@ func (w *webview) Run() {
 
 func (w *webview) Exit() {
 	C.CgoWebViewExit(w.w)
+	C.CgoWebViewFree(w.w)
 }
 
 func (w *webview) Dispatch(f func()) {
@@ -339,7 +370,37 @@ func (w *webview) SetColor(r, g, b, a uint8) {
 }
 
 func (w *webview) SetFullscreen(fullscreen bool) {
-	C.CgoWebViewSetFullscreen(w.w, C.int(boolToInt(fullscreen)))
+	w.Dispatch(func() {
+		C.CgoWebViewSetFullscreen(w.w, C.int(boolToInt(fullscreen)))
+	})
+}
+
+func (w *webview) Focus() {
+	w.Dispatch(func() {
+		C.CgoWebViewFocus(w.w)
+	})
+}
+
+func (w *webview) SetFrameShow(showframe bool) {
+    w.Dispatch(func() {
+        C.CgoWebViewSetFrameShow(w.w, C.int(boolToInt(showframe)))
+    })
+}
+func (w *webview) Move(x, y int) {
+	w.Dispatch(func() {
+		C.CgoWebViewMove(w.w, C.int(x), C.int(y))
+	})
+}
+
+func (w *webview) Resize(width, height int) {
+	w.Dispatch(func() {
+		C.CgoWebViewResize(w.w, C.int(width), C.int(height))
+	})
+}
+func (w *webview) SetBounds(x, y, width, height int) {
+	w.Dispatch(func() {
+		C.CgoWebViewSetBounds(w.w, C.int(x), C.int(y), C.int(width), C.int(height))
+	})
 }
 
 func (w *webview) Dialog(dlgType DialogType, flags int, title string, arg string) string {
