@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"html/template"
 
-	"github.com/zserge/webview"
+	"github.com/virteman/webview"
 )
 
 var uiFrameworkName = "ReactJS+Babel"

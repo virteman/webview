@@ -5,7 +5,7 @@ package main
 //go:generate go-bindata -o assets.go js/vue/... js/styles.css
 
 import (
-	"github.com/zserge/webview"
+	"github.com/virteman/webview"
 )
 
 var uiFrameworkName = "VueJS"

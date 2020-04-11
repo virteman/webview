@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"github.com/zserge/webview"
+	"github.com/virteman/webview"
 )
 
 func startServer() string {

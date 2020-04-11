@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/zserge/webview"
+	"github.com/virteman/webview"
 )
 
 const (
