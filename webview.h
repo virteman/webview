@@ -107,6 +107,9 @@ WEBVIEW_API void webview_bind(webview_t w, const char *name,
 WEBVIEW_API void webview_return(webview_t w, const char *seq, int status,
                                 const char *result);
 
+// set full screen
+WEBVIEW_API void webview_set_fullscreen(webview_t w, int fullscreen);
+
 #ifdef __cplusplus
 }
 #endif
@@ -528,6 +531,15 @@ public:
   void eval(const std::string js) {
     webkit_web_view_run_javascript(WEBKIT_WEB_VIEW(m_webview), js.c_str(), NULL,
                                    NULL, NULL);
+  }
+
+  void set_fullscreen(int fullscreen) {
+    //printf("set full screen :%d\n", fullscreen);
+    if (fullscreen) {
+        gtk_window_fullscreen(GTK_WINDOW(m_window));
+    } else {
+        gtk_window_unfullscreen(GTK_WINDOW(m_window));
+    }
   }
 
 private:
@@ -1058,6 +1070,57 @@ public:
   void eval(const std::string js) { m_browser->eval(js); }
   void init(const std::string js) { m_browser->init(js); }
 
+  void set_fullscreen(int fullscreen) {
+    static LONG oldstyle = 0;
+    static LONG old_ext_style = 0;
+    static RECT saved_rect = {};
+
+    /*
+    printf("set frame show %d\n", rn);
+    if(rn == 0 ) {
+        DWORD err = GetLastError();
+        wprintf(L"error is: %s", err );
+    }
+    */
+    if (fullscreen) {
+      oldstyle = GetWindowLong(m_window, GWL_STYLE);
+      old_ext_style = GetWindowLong(m_window, GWL_EXSTYLE);
+      GetWindowRect(m_window, &saved_rect);
+      MONITORINFO monitor_info;
+      SetWindowLong(m_window, GWL_STYLE,
+              oldstyle & ~(WS_CAPTION | WS_THICKFRAME));
+      SetWindowLong(m_window, GWL_EXSTYLE,
+              old_ext_style &
+              ~(WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE |
+                  WS_EX_CLIENTEDGE | WS_EX_STATICEDGE));
+      monitor_info.cbSize = sizeof(monitor_info);
+      GetMonitorInfo(MonitorFromWindow(m_window, MONITOR_DEFAULTTONEAREST),
+              &monitor_info);
+      RECT r;
+      r.left = monitor_info.rcMonitor.left;
+      r.top = monitor_info.rcMonitor.top;
+      r.right = monitor_info.rcMonitor.right;
+      r.bottom = monitor_info.rcMonitor.bottom;
+      SetWindowPos(m_window NULL, r.left, r.top, r.right - r.left,
+              r.bottom - r.top,
+              SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    } else {
+      if (oldstyle == 0 ) {
+          oldstyle = GetWindowLong(m_window, GWL_STYLE);
+          old_ext_style = GetWindowLong(m_window, GWL_EXSTYLE);
+          GetWindowRect(m_window &saved_rect);
+      }
+
+      SetWindowLong(m_window GWL_STYLE, oldstyle);
+      SetWindowLong(m_window GWL_EXSTYLE, old_ext_style);
+      SetWindowPos(m_window, NULL, saved_rect.left,
+              saved_rect.top,
+              saved_rect.right - saved_rect.left,
+              saved_rect.bottom - saved_rect.top,
+              SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    }
+  }
+
 private:
   virtual void on_message(const std::string msg) = 0;
 
@@ -1221,6 +1284,10 @@ WEBVIEW_API void webview_bind(webview_t w, const char *name,
 WEBVIEW_API void webview_return(webview_t w, const char *seq, int status,
                                 const char *result) {
   static_cast<webview::webview *>(w)->resolve(seq, status, result);
+}
+
+WEBVIEW_API void webview_set_fullscreen(webview_t w, int fullscreen) {
+  static_cast<webview::webview *>(w)->set_fullscreen(fullscreen);
 }
 
 #endif /* WEBVIEW_HEADER */

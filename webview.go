@@ -127,6 +127,9 @@ type WebView interface {
 	// f must be a function
 	// f must return either value and error or just error
 	Bind(name string, f interface{}) error
+
+	// set window full screen
+	SetFullscreen(fullscreen bool)
 }
 
 type webview struct {
@@ -214,6 +217,10 @@ func (w *webview) Dispatch(f func()) {
 	dispatch[index] = f
 	m.Unlock()
 	C.CgoWebViewDispatch(w.w, C.uintptr_t(index))
+}
+
+func (w *webview) SetFullscreen(fullscreen bool) {
+	C.webview_set_fullscreen(w.w, C.int(boolToInt(fullscreen)))
 }
 
 //export _webviewDispatchGoCallback
