@@ -220,7 +220,8 @@ func (w *webview) Dispatch(f func()) {
 }
 
 func (w *webview) SetFullscreen(fullscreen bool) {
-	C.webview_set_fullscreen(w.w, C.int(boolToInt(fullscreen)))
+	//C.webview_set_fullscreen(w.w, C.int(boolToInt(fullscreen)))
+    return
 }
 
 //export _webviewDispatchGoCallback
